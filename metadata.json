@@ -1,0 +1,5 @@
+{
+  "name": "La Biblioteca de Gaby",
+  "description": "Catálogo y registro de lectura personal de libros conectado a NeonDB PostgreSQL con soporte para archivo CSV.",
+  "requestFramePermissions": ["microphone"]
+}
