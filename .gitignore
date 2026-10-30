@@ -10,3 +10,4 @@ schema.sql
 .claude
 data/
 public/libros_iniciales.csv
+.mcp.json

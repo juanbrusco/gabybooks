@@ -207,69 +207,53 @@ export default function App() {
     }
   };
 
-  const handleToggleKindle = async (book: Book) => {
-    const newEstado = book.estadoKindle === 'en_kindle' ? 'no_descargado' : 'en_kindle';
-    const newDescargadoRaw = newEstado === 'en_kindle' ? 'si' : 'no';
+  // Optimistic patch shared by the toggles: applies it, persists it, and reverts the patched fields on failure
+  const patchBook = async (book: Book, patch: Partial<Book>, successMsg: string) => {
+    const apply = (p: Partial<Book>) => {
+      setBooks((prev) => prev.map((b) => (b.id === book.id ? { ...b, ...p } : b)));
+      setSelectedBook((prev) => (prev && prev.id === book.id ? { ...prev, ...p } : prev));
+    };
+    const previous = Object.fromEntries(
+      Object.keys(patch).map((k) => [k, book[k as keyof Book]])
+    ) as Partial<Book>;
 
-    setBooks((prev) =>
-      prev.map((b) =>
-        b.id === book.id
-          ? {
-              ...b,
-              estadoKindle: newEstado,
-              descargadoRaw: newDescargadoRaw,
-            }
-          : b
-      )
-    );
-
+    apply(patch);
     try {
-      await updateBook(book.id, {
-        estadoKindle: newEstado,
-        descargadoRaw: newDescargadoRaw,
-      });
-    } catch (err) {
-      console.error('Error al actualizar estado Kindle en NeonDB:', err);
+      await updateBook(book.id, patch);
+      showToast(successMsg);
+    } catch (err: any) {
+      console.error('Error al actualizar libro en NeonDB:', err);
+      apply(previous);
+      showToast('Error al guardar en la base de datos: ' + (err.message || ''));
     }
+  };
 
-    showToast(
+  const handleToggleKindle = (book: Book) => {
+    const newEstado = book.estadoKindle === 'en_kindle' ? 'no_descargado' : 'en_kindle';
+    return patchBook(
+      book,
+      { estadoKindle: newEstado, descargadoRaw: newEstado === 'en_kindle' ? 'si' : 'no' },
       newEstado === 'en_kindle'
         ? `"${book.titulo}" marcado como descargado en Kindle.`
         : `"${book.titulo}" retirado de Kindle.`
     );
   };
 
-  const handleToggleLeido = async (book: Book) => {
+  const handleToggleLeido = (book: Book) => {
     const willBeLeido = !book.leido;
-    const patch: Partial<Book> = {
-      leido: willBeLeido,
-      ...(willBeLeido ? { estadoKindle: 'en_kindle' as const, descargadoRaw: 'si' } : {}),
-    };
-
-    setBooks((prev) =>
-      prev.map((b) => (b.id === book.id ? { ...b, ...patch } : b))
-    );
-    if (selectedBook && selectedBook.id === book.id) {
-      setSelectedBook({
-        ...selectedBook,
-        ...patch,
-      });
-    }
-
-    try {
-      await updateBook(book.id, patch);
-    } catch (err) {
-      console.error('Error al actualizar estado de lectura en NeonDB:', err);
-    }
-
-    showToast(
+    return patchBook(
+      book,
+      {
+        leido: willBeLeido,
+        ...(willBeLeido ? { estadoKindle: 'en_kindle' as const, descargadoRaw: 'si' } : {}),
+      },
       willBeLeido
         ? `¡Marcaste "${book.titulo}" como leído!`
         : `"${book.titulo}" marcado como no leído.`
     );
   };
 
-  const handleSetEstadoKindle = async (
+  const handleSetEstadoKindle = (
     book: Book,
     estado: 'en_kindle' | 'por_conseguir' | 'no_descargado'
   ) => {
@@ -277,20 +261,7 @@ export default function App() {
     if (estado === 'en_kindle') descargadoRaw = 'si';
     else if (estado === 'por_conseguir') descargadoRaw = 'no conseguido';
 
-    setBooks((prev) =>
-      prev.map((b) => (b.id === book.id ? { ...b, estadoKindle: estado, descargadoRaw } : b))
-    );
-    if (selectedBook && selectedBook.id === book.id) {
-      setSelectedBook({ ...selectedBook, estadoKindle: estado, descargadoRaw });
-    }
-
-    try {
-      await updateBook(book.id, { estadoKindle: estado, descargadoRaw });
-    } catch (err) {
-      console.error('Error al actualizar estado Kindle en NeonDB:', err);
-    }
-
-    showToast(`Estado de Kindle actualizado.`);
+    return patchBook(book, { estadoKindle: estado, descargadoRaw }, 'Estado de Kindle actualizado.');
   };
 
   // Filtered lists and counters
